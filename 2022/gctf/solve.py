@@ -114,11 +114,12 @@ for char in range(num_chars):
                 break
 
 plt.figure(figsize = (20, 3))
-plt.imshow(np.hstack([sols[i].reshape((16, 16, 1)) for i in range(len(sols))]),
+plt.imshow(np.hstack([sols[i].reshape((16, 16, 3)) for i in range(len(sols))]),
            interpolation='nearest')
+plt.axis('off')
 plt.savefig('solution.png')
 
 for char in range(num_chars):
-    plt.imshow(sols[char].reshape((16, 16, 1)))
+    plt.imshow(sols[char].reshape((16, 16, 3)))
     plt.show()
     plt.clf()
