@@ -51,7 +51,6 @@ while True:
             recvline(proc)
 
         for pixel in range(num_pixels):
-            if pixel % 3 != 0: continue # Ignore redundant channels
             if pixel in responses and len(responses[pixel]) == num_samples: continue
             if pixel not in responses:
                 responses[pixel] = {}
@@ -103,15 +102,15 @@ while True:
         print('Fail')
         pass
 
-num_chars = len(list(responses[0].values())[0])
+num_chars = len(list(responses[list(responses.keys())[0]].values())[0])
 
-sols = np.zeros((num_chars, num_pixels // 3))
+sols = np.zeros((num_chars, num_pixels))
 
 for char in range(num_chars):
     for pixel in responses:
         for weight in responses[pixel]:
             if responses[pixel][weight][char] == '\x00':
-                sols[char][pixel // 3] = magic / weight
+                sols[char][pixel] = magic / weight
                 break
 
 plt.figure(figsize = (20, 3))
