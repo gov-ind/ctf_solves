@@ -19,8 +19,13 @@ import string
 import tensorflow as tf
 from keras.models import Sequential
 from keras.layers.core import Dense, Flatten
-from flag import flag
 import signal
+import logging
+tf.get_logger().setLevel(logging.ERROR)
+import warnings
+warnings.filterwarnings('ignore')
+
+flag = 'abcd'
 
 signal.alarm(120)
 

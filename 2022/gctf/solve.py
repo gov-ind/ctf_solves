@@ -1,9 +1,9 @@
 import numpy as np
-from pwn import *
+from pwn import process, remote
 from subprocess import check_output
-from time import sleep
 from math import log
 from matplotlib import pyplot as plt
+from tqdm import tqdm
 
 debug = True
 
@@ -14,93 +14,65 @@ def recvline(p1):
 
 responses = {}
 
-try:
-    with open('oracle_responses', 'r') as f:
-        responses = eval(f.read())
-except:
-    pass
-
 magic = log(127)
-num_samples = 50
+num_samples = 10
 weights = np.linspace(magic, magic / 0.1, num_samples)
 num_pixels = 768
 
-while True:
-    try:
-        if debug:
-            proc = process(['python3.9', 'server.py'])
-            proc.recvline()
-        else:
-            proc = remote('ocr.2022.ctfcompetition.com', 1337)
+if debug:
+    proc = process(['python3.9', 'server.py'])
+    proc.recvline()
+else:
+    proc = remote('ocr.2022.ctfcompetition.com', 1337)
 
-            for _ in range(3): recvline(proc)
+    for _ in range(3): recvline(proc)
 
-            pow = proc.recvline().strip()
-            source = check_output(pow.split(b'<(')[1].split(b')')[0].split(b' '))
-            pl = pow.split(b' ')[-1]
+    pow = proc.recvline().strip()
+    source = check_output(pow.split(b'<(')[1].split(b')')[0].split(b' '))
+    pl = pow.split(b' ')[-1]
+    pow_sol = check_output(['python3.9', '-c', source, 'solve', pl])
+    for _ in range(2): recvline(proc)
+    proc.sendline(pow_sol)
 
-            pow_sol = check_output(['python3.9', '-c', source, 'solve', pl])
+    recvline(proc)
 
-            for _ in range(2): recvline(proc)
+for _ in range(6):
+    recvline(proc)
 
-            proc.sendline(pow_sol)
+pl = b''
+pending_pixels = []
 
-            recvline(proc)
+for pixel in range(num_pixels):
+    pending_pixels.append(pixel)
 
-        for _ in range(6):
-            recvline(proc)
+    pl += b'1\n'
+    pl += f'0 {pixel} 0 1\n'.encode()
 
-        for pixel in range(num_pixels):
-            if pixel in responses and len(responses[pixel]) == num_samples: continue
-            if pixel not in responses:
-                responses[pixel] = {}
+    for weight in weights:
+        pl += b'1\n' + f'2 0 0 {weight}'.encode() + b'\n'
+        pl += b'2\n'
 
-            proc.sendline(b'1')
-            proc.recvline()
-            proc.sendline(f'0 {pixel} 0 1'.encode())
-            for _ in range(5): recvline(proc)
+    pl += b'0\n'
 
-            print(pixel)
+    if len(pending_pixels) == 128:
+        proc.send(pl)
 
-            pl = b''
-            line_count = 0
-            weight_idxs = []
+        print('Sending batch of 128 pixels')
+        for pixel in tqdm(pending_pixels):
+            responses[pixel] = {}
+            proc.readuntil(b'Quit\n')
 
-            for weight in weights:
-                if weight in responses[pixel]: continue
+            for idx in range(num_samples):
+                proc.readuntil(b'Quit\n')
+                val = proc.recvline().split(b': ')[1].strip()[1:-1].decode('unicode_escape')
+                responses[pixel][weights[idx]] = val
 
-                pl += b'1\n' + f'2 0 0 {weight}'.encode() + b'\n'
-                line_count += 6
+                proc.readuntil(b'Quit\n')
 
-                pl += b'2\n'
-                line_count += 6
+            proc.readuntil(b'Quit\n')
 
-                weight_idxs.append(weight)
-
-            if pl != b'':
-                proc.send(pl)
-            
-            weight_idx = 0
-            for _ in range(line_count):
-                res = proc.recvline()
-
-                if b'sees' in res:
-                    val = res.split(b': ')[1].strip()[1:-1].decode('unicode_escape')
-                    responses[pixel][weight_idxs[weight_idx]] = val
-                    weight_idx += 1
-
-            if not debug: sleep(1)
-            
-            proc.sendline(b'0')
-            for _ in range(5): recvline(proc)
-       
-            with open('oracle_responses', 'w') as f:
-                f.write(str(responses))
-            
-        break
-    except Exception as e:
-        print('Fail')
-        pass
+        pl = b''
+        pending_pixels = []
 
 num_chars = len(list(responses[list(responses.keys())[0]].values())[0])
 
